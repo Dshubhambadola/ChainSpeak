@@ -1,19 +1,138 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useState } from "react";
-import WalletModal from "@/components/WalletModal";
+import { useState, useRef, useEffect } from "react";
+import WalletModal, { WalletData } from "@/components/WalletModal";
 import TransactionPreviewCard from "@/components/TransactionPreviewCard";
+import { sendMessageToAI, getWalletBalance, transferEth } from "@/services/api";
+
+type Message = {
+    role: "user" | "ai";
+    content: string;
+    isTransaction?: boolean;
+    transactionData?: {
+        to: string;
+        amount: string;
+        token: string;
+    }
+};
 
 export default function Dashboard() {
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+    const [wallet, setWallet] = useState<WalletData | null>(null);
+    const [balance, setBalance] = useState("0.00");
+    const [input, setInput] = useState("");
+    const [messages, setMessages] = useState<Message[]>([
+        {
+            role: "ai",
+            content: "Hello! I am your ChainSpeak AI assistant. I can help you analyze your portfolio, check gas fees, or execute transactions across multiple chains using natural language.\n\nHow can I assist you today?"
+        }
+    ]);
+    const [isLoading, setIsLoading] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Transaction State
+    const [pendingTx, setPendingTx] = useState<{ to: string, amount: string } | null>(null);
+    const [txStatus, setTxStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+    const [txHash, setTxHash] = useState("");
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const handleWalletConnect = async (data: WalletData) => {
+        setWallet(data);
+        try {
+            const balanceData = await getWalletBalance(data.address);
+            setBalance(balanceData.balance_eth);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleSendMessage = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const userMessage = input.trim();
+        setInput("");
+        setMessages(prev => [...prev, { role: "user", content: userMessage }]);
+        setIsLoading(true);
+
+        try {
+            const aiResponse = await sendMessageToAI(userMessage);
+
+            // Check for transaction proposal protocol
+            if (aiResponse.startsWith("TRANSACTION_PROPOSAL:")) {
+                const jsonPart = aiResponse.replace("TRANSACTION_PROPOSAL:", "").trim();
+                const txData = JSON.parse(jsonPart);
+
+                setMessages(prev => [...prev, {
+                    role: "ai",
+                    content: "I've prepared the transaction for you. Please review and confirm.",
+                    isTransaction: true,
+                    transactionData: txData
+                }]);
+            } else {
+                setMessages(prev => [...prev, { role: "ai", content: aiResponse }]);
+            }
+        } catch (error) {
+            setMessages(prev => [...prev, { role: "ai", content: "Sorry, I encountered an error. Please try again." }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const confirmTransaction = async (to: string, amount: string) => {
+        setPendingTx({ to, amount });
+        // In a real app, we'd open a secure modal here. 
+        // For this demo, we'll inline a password prompt.
+        const password = prompt("Enter wallet password to confirm transaction:");
+        if (!password) return;
+
+        if (!wallet?.encrypted_key) {
+            alert("No wallet key found. Please reconnect wallet.");
+            return;
+        }
+
+        setTxStatus("sending");
+        try {
+            const result = await transferEth(wallet.encrypted_key, password, to, amount);
+            setTxStatus("success");
+            setTxHash(result.tx_hash);
+            setMessages(prev => [...prev, {
+                role: "ai",
+                content: `Transaction Sent! Hash: ${result.tx_hash}`
+            }]);
+
+            // Refresh balance
+            const balanceData = await getWalletBalance(wallet.address);
+            setBalance(balanceData.balance_eth);
+
+        } catch (err: any) {
+            setTxStatus("error");
+            setMessages(prev => [...prev, {
+                role: "ai",
+                content: `Transaction Failed: ${err.message}`
+            }]);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            handleSendMessage();
+        }
+    };
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col font-display grid-bg">
             <WalletModal
                 isOpen={isWalletModalOpen}
                 onClose={() => setIsWalletModalOpen(false)}
+                onConnect={handleWalletConnect}
             />
             {/* Top Navigation */}
             <header className="flex items-center justify-between border-b border-white/10 px-8 py-3 glass sticky top-0 z-50">
@@ -35,22 +154,15 @@ export default function Dashboard() {
                             className="flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-all"
                         >
                             <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
-                            0x742...af4e
+                            {wallet ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : "Connect Wallet"}
                         </button>
-                        <div className="size-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden">
-                            <img
-                                className="w-full h-full object-cover"
-                                alt="User profile avatar"
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuA40nxiALivbIMeBoVakb6_8wFIcuKovEXq44VnnU-UpdeJrxATruTSBxYVnHh2EkaPmnhmvkX6plOgjt8hacxiOiaKTtxrNn2syc8mVdoTbZAVGmjAbXp2NjNkuHAyi4Waoy_5FRUXTx2G0fhpDpa2rbmOs_hIcOToVnYTYtBLgY1S9IGeBWwWuxhRIJrwg70jnjhg1higgT786XQzTmOtFLcyjLGLQ6EXSVqZgTd_fK1qgas4QlLEACbJhFssU7NhRePLOPjFPc4"
-                            />
-                        </div>
                     </div>
                 </div>
             </header>
 
             <main className="flex flex-1 overflow-hidden">
                 {/* Sidebar (30%) */}
-                <aside className="w-[30%] border-r border-white/10 flex flex-col bg-background-dark/50 backdrop-blur-sm overflow-hidden">
+                <aside className="w-[30%] border-r border-white/10 flex flex-col bg-background-dark/50 backdrop-blur-sm overflow-hidden hidden md:flex">
                     <div className="p-6 flex flex-col gap-6 h-full custom-scrollbar overflow-y-auto">
                         {/* Wallet Card */}
                         <div className="bg-card-dark border border-white/10 rounded-xl p-5 flex flex-col gap-4 relative overflow-hidden group">
@@ -62,90 +174,19 @@ export default function Dashboard() {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-slate-400 text-xs font-medium uppercase tracking-widest">Total Balance</span>
-                                <h1 className="text-3xl font-bold mt-1">$12,450.60</h1>
+                                <h1 className="text-3xl font-bold mt-1">{parseFloat(balance).toFixed(4)} ETH</h1>
                             </div>
                             <div className="flex items-center justify-between mt-2 pt-4 border-t border-white/5">
                                 <div className="flex flex-col">
                                     <span className="text-slate-500 text-[10px] uppercase font-bold tracking-tighter">Current Network</span>
-                                    <span className="text-sm font-medium">Ethereum Mainnet</span>
-                                </div>
-                                <button className="p-2 hover:bg-white/5 rounded-lg transition-colors text-slate-400">
-                                    <span className="material-symbols-outlined text-[20px]">content_copy</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Portfolio Token List */}
-                        <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">Assets</h3>
-                                <button className="text-xs text-primary font-bold hover:underline">View All</button>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                {/* Token Item */}
-                                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all border border-transparent hover:border-white/10 cursor-pointer">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10">
-                                            <span className="material-symbols-outlined text-primary">currency_bitcoin</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-sm">Ethereum</span>
-                                            <span className="text-xs text-slate-500">0.042 ETH</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right flex flex-col">
-                                        <span className="font-bold text-sm">$2,500.00</span>
-                                        <span className="text-[10px] text-emerald-400 font-medium">+2.4%</span>
-                                    </div>
-                                </div>
-                                {/* Token Item */}
-                                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all border border-transparent hover:border-white/10 cursor-pointer">
-                                    <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10">
-                                            <span className="material-symbols-outlined text-primary">monetization_on</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-sm">USD Coin</span>
-                                            <span className="text-xs text-slate-500">1,200.00 USDC</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right flex flex-col">
-                                        <span className="font-bold text-sm">$1,200.00</span>
-                                        <span className="text-[10px] text-slate-500 font-medium">0.00%</span>
-                                    </div>
+                                    <span className="text-sm font-medium">Sepolia Testnet</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Recent Transactions */}
-                        <div className="flex flex-col gap-3">
-                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">Recent Activity</h3>
-                            <div className="flex flex-col gap-3">
-                                <div className="flex items-start gap-3">
-                                    <div className="size-8 rounded bg-primary/20 flex items-center justify-center text-primary mt-0.5">
-                                        <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium">Swap USDC to ETH</span>
-                                            <span className="text-[10px] font-bold text-amber-400 px-1.5 py-0.5 rounded bg-amber-400/10 uppercase">Pending</span>
-                                        </div>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Feb 24, 2024 • 14:22</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-3">
-                                    <div className="size-8 rounded bg-emerald-500/20 flex items-center justify-center text-emerald-400 mt-0.5">
-                                        <span className="material-symbols-outlined text-[18px]">call_received</span>
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium">Received 500 USDT</span>
-                                            <span className="text-[10px] font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-400/10 uppercase">Success</span>
-                                        </div>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Feb 23, 2024 • 09:15</p>
-                                    </div>
-                                </div>
-                            </div>
+                        {/* Feature Hint */}
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 border-dashed">
+                            <p className="text-sm text-slate-400 text-center">Wallet integration coming soon...</p>
                         </div>
                     </div>
                 </aside>
@@ -154,57 +195,54 @@ export default function Dashboard() {
                 <section className="flex-1 flex flex-col relative">
                     {/* Chat Feed */}
                     <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 custom-scrollbar pb-32">
-                        {/* AI Welcome Message */}
-                        <div className="flex gap-4 max-w-3xl">
-                            <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
-                                <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                            </div>
-                            <div className="glass p-4 rounded-xl rounded-tl-none border border-white/10 max-w-xl">
-                                <p className="text-sm leading-relaxed">
-                                    Hello! I am your ChainSpeak AI assistant. I can help you analyze your portfolio, check gas fees, or execute transactions across multiple chains using natural language.
-                                    <br /><br />
-                                    How can I assist you today?
-                                </p>
-                            </div>
-                        </div>
+                        {messages.map((msg, index) => (
+                            <div key={index} className={`flex gap-4 max-w-3xl ${msg.role === "user" ? "self-end" : ""}`}>
+                                {msg.role === "ai" && (
+                                    <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
+                                        <span className="material-symbols-outlined text-[20px]">smart_toy</span>
+                                    </div>
+                                )}
 
-                        {/* User Message */}
-                        <div className="flex gap-4 max-w-3xl self-end">
-                            <div className="user-bubble p-4 rounded-xl rounded-tr-none text-white shadow-lg shadow-primary/10 max-w-xl">
-                                <p className="text-sm leading-relaxed font-medium">
-                                    Swap 100 USDC to ETH on Ethereum Mainnet.
-                                </p>
-                            </div>
-                            <div className="size-9 rounded-lg bg-slate-800 flex items-center justify-center text-white shrink-0 border border-white/10 overflow-hidden">
-                                <img
-                                    className="w-full h-full object-cover"
-                                    alt="User personal profile avatar"
-                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIwfZuPCVQ5HSZT9-8rgFGGc1UpGkO4hdwXmjp25NkBH4Yb4-Ayvq5B8slKVuCuE3exXI_dMn7nww6Bo7KUPiIgrjlvwqRxTSX89j1tSjBTow6xtD1Y5JkLEKS8v3Rmbv_5u8gN3GU5RsXi1yy8xgtpCJPglOhEgKJRwPIcn9b7Y2rkN_1lYf0QFEhu1ctf2oni29ZythX0PmFTBrhp1AE1BQqOp6qKJgZknmHHsEitD00FXnJtjm5rO3Zx65U3rCS6gnJ3JSRXHM"
-                                />
-                            </div>
-                        </div>
-
-                        {/* AI Response & Confirmation Card */}
-                        <div className="flex gap-4 max-w-3xl">
-                            <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
-                                <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                            </div>
-                            <div className="flex flex-col gap-4 max-w-xl">
-                                <div className="glass p-4 rounded-xl rounded-tl-none border border-white/10">
-                                    <p className="text-sm leading-relaxed">
-                                        I've found the best route for your swap. Please review the transaction details below and approve when ready.
+                                <div className={`${msg.role === "user" ? "user-bubble rounded-tr-none text-white shadow-lg shadow-primary/10" : "glass rounded-tl-none border border-white/10"} p-4 rounded-xl max-w-xl`}>
+                                    <p className={`text-sm leading-relaxed ${msg.role === "user" ? "font-medium" : ""}`}>
+                                        {msg.content}
                                     </p>
                                 </div>
-                                {/* Transaction Confirmation Card */}
-                                <TransactionPreviewCard
-                                    fromToken={{ symbol: "USDC", amount: "100.00" }}
-                                    toToken={{ symbol: "ETH", amount: "~0.0423" }}
-                                    gasCost="$4.20"
-                                    onConfirm={() => console.log('Confirmed')}
-                                    onCancel={() => console.log('Cancelled')}
-                                />
+
+                                {/* Transaction Card Rendering */}
+                                {msg.isTransaction && msg.transactionData && (
+                                    <div className="ml-14 max-w-xl w-full">
+                                        <TransactionPreviewCard
+                                            fromToken={{ symbol: "ETH", amount: msg.transactionData.amount }}
+                                            toToken={{ symbol: "ETH (Recipient)", amount: msg.transactionData.amount }}
+                                            gasCost="~0.0004 ETH"
+                                            onConfirm={() => confirmTransaction(msg.transactionData!.to, msg.transactionData!.amount)}
+                                            onCancel={() => console.log('Cancelled')}
+                                        />
+                                    </div>
+                                )}
+                                {msg.role === "user" && (
+                                    <div className="size-9 rounded-lg bg-slate-800 flex items-center justify-center text-white shrink-0 border border-white/10 overflow-hidden">
+                                        <span className="material-symbols-outlined text-[20px]">person</span>
+                                    </div>
+                                )}
                             </div>
-                        </div>
+                        ))}
+                        {isLoading && (
+                            <div className="flex gap-4 max-w-3xl">
+                                <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
+                                    <span className="material-symbols-outlined text-[20px]">smart_toy</span>
+                                </div>
+                                <div className="glass p-4 rounded-xl rounded-tl-none border border-white/10">
+                                    <div className="flex gap-1">
+                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
+                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-75"></span>
+                                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-150"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
                     </div>
 
                     {/* Sticky Bottom Input */}
@@ -215,14 +253,22 @@ export default function Dashboard() {
                             </button>
                             <input
                                 className="flex-1 bg-transparent border-none focus:ring-0 text-slate-100 placeholder:text-slate-500 text-sm py-3 px-2 focus:outline-none"
-                                placeholder="Send a message or execute a transaction..."
+                                placeholder="Send a message (e.g., 'Check my balance')..."
                                 type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                disabled={isLoading}
                             />
                             <div className="flex items-center gap-1 pr-1">
                                 <button className="p-3 hover:bg-white/5 rounded-xl transition-colors text-slate-400">
                                     <span className="material-symbols-outlined">mic</span>
                                 </button>
-                                <button className="bg-primary text-white size-10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-[1.05] transition-transform">
+                                <button
+                                    onClick={handleSendMessage}
+                                    disabled={isLoading || !input.trim()}
+                                    className="bg-primary text-white size-10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-[1.05] transition-transform disabled:opacity-50 disabled:hover:scale-100"
+                                >
                                     <span className="material-symbols-outlined">arrow_upward</span>
                                 </button>
                             </div>
@@ -230,6 +276,6 @@ export default function Dashboard() {
                     </div>
                 </section>
             </main>
-        </div>
+        </div >
     );
 }

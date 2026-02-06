@@ -22,7 +22,14 @@ def get_wallet_balance(address: str) -> str:
     except Exception as e:
         return f"Error fetching balance: {str(e)}"
 
-tools = [get_wallet_balance]
+@tool
+def prepare_eth_transfer(to_address: str, amount: str) -> str:
+    """Prepare an Ethereum transfer transaction. Use this when the user wants to send ETH."""
+    # Build the proposal string
+    clean_amount = str(amount).replace("ETH", "").strip()
+    return f"TRANSACTION_PROPOSAL: {{\"type\": \"transfer\", \"to\": \"{to_address}\", \"amount\": \"{clean_amount}\", \"token\": \"ETH\"}}"
+
+tools = [get_wallet_balance, prepare_eth_transfer]
 
 # Create Agent
 # Removing modifier args to ensure compatibility with installed langgraph version
@@ -32,7 +39,7 @@ class AgentService:
     async def process_command(self, user_input: str):
         # Manually prepend the system prompt
         messages = [
-            SystemMessage(content="You are ChainSpeak, an AI assistant for blockchain interaction. You can check wallet balances on Sepolia testnet. Always be concise and helpful."),
+            SystemMessage(content="You are ChainSpeak, an AI assistant for blockchain interaction. \n\nCAPABILITIES:\n1. Check balances using `get_wallet_balance`.\n2. Prepare ETH transactions using `prepare_eth_transfer`.\n\nRULES:\n- If the user asks to send, transfer, or move ETH, you MUST use the `prepare_eth_transfer` tool with the recipient address and amount.\n- Do NOT just answer with text if the user wants to transact. Invoke the tool.\n- Always be concise."),
             ("user", user_input)
         ]
         response = await agent_executor.ainvoke({"messages": messages})

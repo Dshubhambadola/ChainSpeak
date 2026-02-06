@@ -1,116 +1,127 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
+import { createWallet, importWallet } from '@/services/api';
 
 interface WalletModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onConnect: (data: WalletData) => void;
 }
 
-export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
+export interface WalletData {
+    address: string;
+    encrypted_key?: string;
+    private_key?: string;
+}
+
+type Tab = 'connect' | 'create' | 'import';
+
+export default function WalletModal({ isOpen, onClose, onConnect }: WalletModalProps) {
+    const [activeTab, setActiveTab] = useState<Tab>('connect');
+    const [password, setPassword] = useState("");
+    const [privateKey, setPrivateKey] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
     if (!isOpen) return null;
+
+    const handleCreate = async () => {
+        setIsLoading(true);
+        setError("");
+        try {
+            const data = await createWallet(password);
+            onConnect(data);
+            onClose();
+        } catch (err) {
+            setError("Failed to create wallet");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleImport = async () => {
+        setIsLoading(true);
+        setError("");
+        try {
+            const data = await importWallet(privateKey, password);
+            onConnect(data);
+            onClose();
+        } catch (err) {
+            setError("Failed to import wallet");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={onClose}
-            ></div>
-
-            {/* Modal Container */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
             <div className="relative z-10 w-full max-w-[400px]">
-                {/* Decorative background elements matching the design */}
-                <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-[#7a2dbe]/20 rounded-full blur-[100px] pointer-events-none"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#7a2dbe]/10 rounded-full blur-[120px] pointer-events-none"></div>
-
                 <div className="glass-modal rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-in fade-in zoom-in-95 duration-200">
-                    {/* Header Section */}
                     <div className="flex items-center justify-between p-6 border-b border-white/5">
-                        <h2 className="text-xl font-bold tracking-tight text-white">Connect Your Wallet</h2>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors group"
-                        >
-                            <span className="material-symbols-outlined text-white/60 group-hover:text-white text-2xl">close</span>
+                        <h2 className="text-xl font-bold tracking-tight text-white">
+                            {activeTab === 'connect' && "Connect Wallet"}
+                            {activeTab === 'create' && "Create New Wallet"}
+                            {activeTab === 'import' && "Import Wallet"}
+                        </h2>
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                            <span className="material-symbols-outlined text-white/60 hover:text-white">close</span>
                         </button>
                     </div>
 
-                    {/* Content Section */}
-                    <div className="p-6 flex flex-col gap-3">
-                        {/* MetaMask Option */}
-                        <button className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left group">
-                            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#362843] flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">account_balance_wallet</span>
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-white">MetaMask</span>
-                                    <span className="bg-[#7a2dbe] text-[10px] font-bold uppercase px-2 py-0.5 rounded-full text-white tracking-wider">Popular</span>
-                                </div>
-                                <p className="text-white/50 text-xs">Recommended for web users</p>
-                            </div>
-                            <span className="material-symbols-outlined text-white/20 group-hover:text-[#7a2dbe] transition-colors">chevron_right</span>
-                        </button>
+                    <div className="p-6 flex flex-col gap-4">
+                        {error && <div className="text-red-400 text-sm bg-red-400/10 p-2 rounded border border-red-400/20">{error}</div>}
 
-                        {/* WalletConnect Option */}
-                        <button className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left group">
-                            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#362843] flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">qr_code_scanner</span>
-                            </div>
-                            <div className="flex-1">
-                                <span className="font-semibold text-white">WalletConnect</span>
-                                <p className="text-white/50 text-xs">Scan with your mobile app</p>
-                            </div>
-                            <span className="material-symbols-outlined text-white/20 group-hover:text-[#7a2dbe] transition-colors">chevron_right</span>
-                        </button>
+                        {activeTab === 'connect' && (
+                            <>
+                                <button onClick={() => setActiveTab('create')} className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left hover:bg-white/10 transition-all">
+                                    <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">add_circle</span>
+                                    <div>
+                                        <span className="font-semibold text-white">Create New Wallet</span>
+                                        <p className="text-white/50 text-xs">Generate a new secure wallet</p>
+                                    </div>
+                                </button>
+                                <button onClick={() => setActiveTab('import')} className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left hover:bg-white/10 transition-all">
+                                    <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">key</span>
+                                    <div>
+                                        <span className="font-semibold text-white">Import Wallet</span>
+                                        <p className="text-white/50 text-xs">Use existing private key</p>
+                                    </div>
+                                </button>
+                            </>
+                        )}
 
-                        {/* Coinbase Wallet Option */}
-                        <button className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left group">
-                            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#362843] flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">currency_bitcoin</span>
+                        {(activeTab === 'create' || activeTab === 'import') && (
+                            <div className="flex flex-col gap-4">
+                                {activeTab === 'import' && (
+                                    <input
+                                        type="text"
+                                        placeholder="Private Key (0x...)"
+                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-[#7a2dbe]"
+                                        value={privateKey}
+                                        onChange={(e) => setPrivateKey(e.target.value)}
+                                    />
+                                )}
+                                <input
+                                    type="password"
+                                    placeholder="Set Password"
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-[#7a2dbe]"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                                <button
+                                    onClick={activeTab === 'create' ? handleCreate : handleImport}
+                                    disabled={isLoading || !password || (activeTab === 'import' && !privateKey)}
+                                    className="w-full bg-[#7a2dbe] text-white font-bold py-3 rounded-lg hover:bg-[#6921a8] transition-colors disabled:opacity-50"
+                                >
+                                    {isLoading ? "Processing..." : (activeTab === 'create' ? "Create Wallet" : "Import Wallet")}
+                                </button>
+                                <button onClick={() => setActiveTab('connect')} className="text-slate-400 text-sm hover:text-white">
+                                    Back to options
+                                </button>
                             </div>
-                            <div className="flex-1">
-                                <span className="font-semibold text-white">Coinbase Wallet</span>
-                                <p className="text-white/50 text-xs">Seamless exchange integration</p>
-                            </div>
-                            <span className="material-symbols-outlined text-white/20 group-hover:text-[#7a2dbe] transition-colors">chevron_right</span>
-                        </button>
-
-                        {/* Rainbow Option */}
-                        <button className="wallet-card w-full flex items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-xl text-left group">
-                            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#362843] flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#7a2dbe] text-3xl">looks</span>
-                            </div>
-                            <div className="flex-1">
-                                <span className="font-semibold text-white">Rainbow</span>
-                                <p className="text-white/50 text-xs">Fun and simple mobile wallet</p>
-                            </div>
-                            <span className="material-symbols-outlined text-white/20 group-hover:text-[#7a2dbe] transition-colors">chevron_right</span>
-                        </button>
-                    </div>
-
-                    {/* Footer Section */}
-                    <div className="px-6 py-5 bg-black/20 border-t border-white/5 flex flex-col items-center gap-4">
-                        <div className="flex items-center gap-2 text-white/40">
-                            <span className="material-symbols-outlined text-lg text-[#7a2dbe]/80">verified_user</span>
-                            <span className="text-xs font-medium tracking-wide">Your keys never leave your device</span>
-                        </div>
-                        <a className="text-[#7a2dbe] hover:text-[#7a2dbe]/80 text-sm font-medium transition-colors" href="#">
-                            New to wallets? Learn more
-                        </a>
-                    </div>
-                </div>
-
-                {/* Optional Bottom Indicator (Web3 Style) */}
-                <div className="mt-8 flex justify-center items-center gap-6 opacity-40">
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span className="text-[10px] uppercase font-bold text-white tracking-widest">Ethereum Mainnet</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="text-[10px] uppercase font-bold text-white tracking-widest">Secure Node</span>
+                        )}
                     </div>
                 </div>
             </div>

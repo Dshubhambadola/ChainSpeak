@@ -1,8 +1,15 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from app.models.wallet import WalletCreate, WalletImport, WalletResponse, BalanceResponse
 from app.services.wallet_service import wallet_service
 
 router = APIRouter()
+
+class TransferRequest(BaseModel):
+    encrypted_key: str
+    password: str
+    to_address: str
+    amount: float
 
 @router.post("/create", response_model=WalletResponse)
 def create_wallet(wallet_in: WalletCreate):
@@ -32,5 +39,12 @@ def get_balance(address: str):
     try:
         result = wallet_service.get_balance(address)
         return BalanceResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/transfer")
+def transfer_eth(request: TransferRequest):
+    try:
+        return wallet_service.transfer_eth(request.encrypted_key, request.password, request.to_address, request.amount)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

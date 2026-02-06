@@ -42,4 +42,41 @@ class WalletService:
             "balance_eth": str(balance_eth)
         }
 
+    def transfer_eth(self, encrypted_key: str, password: str, to_address: str, amount_eth: float):
+        if not web3_service.is_connected():
+            raise Exception("Web3 not connected")
+        
+        # Decrypt private key
+        # Note: encrypted_key string needs to be parsed to JSON if it was dumped, 
+        # but eth_account.decrypt usually expects the dict/json object. 
+        # Our create/import returns json.dumps string.
+        key_data = json.loads(encrypted_key)
+        private_key = Account.decrypt(key_data, password)
+        
+        account = Account.from_key(private_key)
+        nonce = web3_service.w3.eth.get_transaction_count(account.address)
+        
+        # Build transaction
+        tx = {
+            'nonce': nonce,
+            'to': to_address,
+            'value': web3_service.w3.to_wei(amount_eth, 'ether'),
+            'gas': 21000,
+            'gasPrice': web3_service.w3.eth.gas_price,
+            'chainId': web3_service.w3.eth.chain_id
+        }
+        
+        # Sign transaction
+        signed_tx = web3_service.w3.eth.account.sign_transaction(tx, private_key)
+        
+        # Send transaction
+        tx_hash = web3_service.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        return {
+            "tx_hash": web3_service.w3.to_hex(tx_hash),
+            "from": account.address,
+            "to": to_address,
+            "amount": amount_eth
+        }
+
 wallet_service = WalletService()
