@@ -11,9 +11,14 @@ type Message = {
     content: string;
     isTransaction?: boolean;
     transactionData?: {
-        to: string;
-        amount: string;
-        token: string;
+        type: "transfer" | "swap";
+        to?: string;
+        amount?: string;
+        token?: string;
+        tokenIn?: string;
+        tokenOut?: string;
+        amountIn?: string;
+        amountOutMin?: string;
     }
 };
 
@@ -86,10 +91,8 @@ export default function Dashboard() {
         }
     };
 
-    const confirmTransaction = async (to: string, amount: string) => {
-        setPendingTx({ to, amount });
+    const confirmTransaction = async (data: any) => {
         // In a real app, we'd open a secure modal here. 
-        // For this demo, we'll inline a password prompt.
         const password = prompt("Enter wallet password to confirm transaction:");
         if (!password) return;
 
@@ -100,12 +103,27 @@ export default function Dashboard() {
 
         setTxStatus("sending");
         try {
-            const result = await transferEth(wallet.encrypted_key, password, to, amount);
+            let result;
+            if (data.type === 'transfer') {
+                result = await transferEth(wallet.encrypted_key, password, data.to, data.amount);
+            } else if (data.type === 'swap') {
+                // TODO: Implement actual swap API call
+                console.log("Mock Swap Execution:", data);
+                // Simulate success for now
+                await new Promise(r => setTimeout(r, 2000));
+                result = { tx_hash: "0xMOCK_SWAP_HASH_" + Date.now() };
+            }
+
             setTxStatus("success");
             setTxHash(result.tx_hash);
+
+            const successMsg = data.type === 'swap'
+                ? `Swap Executed! Hash: ${result.tx_hash}`
+                : `Transaction Sent! Hash: ${result.tx_hash}`;
+
             setMessages(prev => [...prev, {
                 role: "ai",
-                content: `Transaction Sent! Hash: ${result.tx_hash}`
+                content: successMsg
             }]);
 
             // Refresh balance
@@ -213,10 +231,17 @@ export default function Dashboard() {
                                 {msg.isTransaction && msg.transactionData && (
                                     <div className="ml-14 max-w-xl w-full">
                                         <TransactionPreviewCard
-                                            fromToken={{ symbol: "ETH", amount: msg.transactionData.amount }}
-                                            toToken={{ symbol: "ETH (Recipient)", amount: msg.transactionData.amount }}
-                                            gasCost="~0.0004 ETH"
-                                            onConfirm={() => confirmTransaction(msg.transactionData!.to, msg.transactionData!.amount)}
+                                            type={msg.transactionData.type}
+                                            fromToken={{
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenIn! : "ETH",
+                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountIn! : msg.transactionData.amount!
+                                            }}
+                                            toToken={{
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenOut! : "ETH (Recipient)",
+                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountOutMin! : msg.transactionData.amount!
+                                            }}
+                                            gasCost="~0.005 ETH"
+                                            onConfirm={() => confirmTransaction(msg.transactionData)}
                                             onCancel={() => console.log('Cancelled')}
                                         />
                                     </div>

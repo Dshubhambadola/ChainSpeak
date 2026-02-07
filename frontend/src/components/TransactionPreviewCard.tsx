@@ -3,6 +3,7 @@
 import React from 'react';
 
 interface TransactionPreviewCardProps {
+    type: "transfer" | "swap";
     fromToken: {
         symbol: string;
         amount: string;
@@ -19,12 +20,18 @@ interface TransactionPreviewCardProps {
 }
 
 export default function TransactionPreviewCard({
+    type,
     fromToken,
     toToken,
     gasCost,
     onConfirm,
     onCancel
 }: TransactionPreviewCardProps) {
+    const isSwap = type === "swap";
+    const actionLabel = isSwap ? "Swap" : "Send";
+    const actionColor = isSwap ? "bg-[#7c17d3]" : "bg-blue-600";
+    const icon = isSwap ? "swap_vert" : "send";
+
     return (
         <div className="w-full max-w-[350px] glass-card rounded-xl overflow-hidden shadow-2xl flex flex-col font-display animate-in fade-in zoom-in-95 duration-300">
             {/* Header Section */}
@@ -35,7 +42,7 @@ export default function TransactionPreviewCard({
                         <h2 className="text-white text-base font-semibold leading-tight tracking-tight">Review Transaction</h2>
                     </div>
                     <div className="mt-2">
-                        <span className="bg-[#7c17d3] text-white text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full">Swap</span>
+                        <span className={`${actionColor} text-white text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full`}>{actionLabel}</span>
                     </div>
                 </div>
                 <button className="text-gray-400 hover:text-white transition-colors">
@@ -85,22 +92,24 @@ export default function TransactionPreviewCard({
                         <div className="w-4 h-4 rounded-full bg-indigo-500/20 flex items-center justify-center">
                             <span className="material-symbols-outlined text-[10px] text-indigo-400">lan</span>
                         </div>
-                        <span>Ethereum</span>
+                        <span>Ethereum Sepolia</span>
                     </div>
                 </div>
                 <div className="flex justify-between items-center text-[13px]">
                     <span className="text-gray-400">Estimated gas</span>
                     <span className="text-white font-medium">{gasCost}</span>
                 </div>
-                <div className="flex justify-between items-center text-[13px]">
-                    <span className="text-gray-400">Slippage</span>
-                    <span className="text-emerald-400">0.5%</span>
-                </div>
+                {isSwap && (
+                    <div className="flex justify-between items-center text-[13px]">
+                        <span className="text-gray-400">Min. Received</span>
+                        <span className="text-emerald-400">{toToken.amount} {toToken.symbol}</span>
+                    </div>
+                )}
                 <div className="flex justify-between items-center text-[13px]">
                     <span className="text-gray-400">Route</span>
                     <div className="flex items-center gap-1.5 text-white">
                         <span className="material-symbols-outlined text-[14px]">alt_route</span>
-                        <span>Uniswap V3</span>
+                        <span>{isSwap ? "Uniswap V3" : "Standard Transfer"}</span>
                     </div>
                 </div>
             </div>
@@ -111,7 +120,7 @@ export default function TransactionPreviewCard({
                     onClick={onConfirm}
                     className="w-full h-11 bg-gradient-to-r from-[#7c17d3] to-[#9d4edd] hover:opacity-90 text-white font-bold text-sm rounded-lg transition-all shadow-lg flex items-center justify-center gap-2"
                 >
-                    <span>Confirm Transaction</span>
+                    <span>Confirm {actionLabel}</span>
                 </button>
                 <button
                     onClick={onCancel}
