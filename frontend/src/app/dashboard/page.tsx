@@ -11,7 +11,7 @@ type Message = {
     content: string;
     isTransaction?: boolean;
     transactionData?: {
-        type: "transfer" | "swap";
+        type: "transfer" | "swap" | "supply";
         to?: string;
         amount?: string;
         token?: string;
@@ -19,6 +19,7 @@ type Message = {
         tokenOut?: string;
         amountIn?: string;
         amountOutMin?: string;
+        tokenAddress?: string;
     }
 };
 
@@ -112,14 +113,19 @@ export default function Dashboard() {
                 // Simulate success for now
                 await new Promise(r => setTimeout(r, 2000));
                 result = { tx_hash: "0xMOCK_SWAP_HASH_" + Date.now() };
+            } else if (data.type === 'supply') {
+                // TODO: Implement actual supply API call
+                console.log("Mock Supply Execution:", data);
+                await new Promise(r => setTimeout(r, 2000));
+                result = { tx_hash: "0xMOCK_SUPPLY_HASH_" + Date.now() };
             }
 
             setTxStatus("success");
             setTxHash(result.tx_hash);
 
-            const successMsg = data.type === 'swap'
-                ? `Swap Executed! Hash: ${result.tx_hash}`
-                : `Transaction Sent! Hash: ${result.tx_hash}`;
+            let successMsg = `Transaction Sent! Hash: ${result.tx_hash}`;
+            if (data.type === 'swap') successMsg = `Swap Executed! Hash: ${result.tx_hash}`;
+            if (data.type === 'supply') successMsg = `Supply Successful! Hash: ${result.tx_hash}`;
 
             setMessages(prev => [...prev, {
                 role: "ai",
@@ -233,12 +239,12 @@ export default function Dashboard() {
                                         <TransactionPreviewCard
                                             type={msg.transactionData.type}
                                             fromToken={{
-                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenIn! : "ETH",
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenIn! : (msg.transactionData.type === 'supply' ? msg.transactionData.token! : "ETH"),
                                                 amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountIn! : msg.transactionData.amount!
                                             }}
                                             toToken={{
-                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenOut! : "ETH (Recipient)",
-                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountOutMin! : msg.transactionData.amount!
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenOut! : (msg.transactionData.type === 'supply' ? "Aave V3 Pool" : "ETH (Recipient)"),
+                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountOutMin! : (msg.transactionData.type === 'supply' ? msg.transactionData.amount! : msg.transactionData.amount!)
                                             }}
                                             gasCost="~0.005 ETH"
                                             onConfirm={() => confirmTransaction(msg.transactionData)}
