@@ -50,4 +50,11 @@ class AaveService:
         })
         return tx
 
+    def get_user_account_data(self, user_address: str):
+        """
+        Returns (totalCollateralBase, totalDebtBase, availableBorrowsBase, currentLiquidationThreshold, ltv, healthFactor)
+        """
+        pool_contract = self.get_pool_contract()
+        return pool_contract.functions.getUserAccountData(user_address).call()
+
 aave_service = AaveService()

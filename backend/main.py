@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from app.services.web3_service import web3_service
-from app.api.endpoints import wallet, chat
+from app.api.endpoints import wallet, chat, portfolio
 
 app = FastAPI(title="ChainSpeak API", version="0.1.0")
 
@@ -20,8 +20,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include Routers
 app.include_router(wallet.router, prefix="/api/wallet", tags=["wallet"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 
 @app.on_event("startup")
 async def startup_event():

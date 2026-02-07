@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import WalletModal, { WalletData } from "@/components/WalletModal";
 import TransactionPreviewCard from "@/components/TransactionPreviewCard";
+import PortfolioSummary from "@/components/PortfolioSummary";
 import { sendMessageToAI, getWalletBalance, transferEth } from "@/services/api";
 
 type Message = {
@@ -35,6 +36,8 @@ export default function Dashboard() {
         }
     ]);
     const [isLoading, setIsLoading] = useState(false);
+    const [portfolioData, setPortfolioData] = useState<any>(null);
+    const [isPortfolioLoading, setIsPortfolioLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Transaction State
@@ -89,6 +92,30 @@ export default function Dashboard() {
             setMessages(prev => [...prev, { role: "ai", content: "Sorry, I encountered an error. Please try again." }]);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Fetch portfolio when wallet changes
+    useEffect(() => {
+        if (wallet?.address) {
+            fetchPortfolio(wallet.address);
+        } else {
+            setPortfolioData(null);
+        }
+    }, [wallet]);
+
+    const fetchPortfolio = async (address: string) => {
+        setIsPortfolioLoading(true);
+        try {
+            const res = await fetch(`http://localhost:8000/api/portfolio/${address}`);
+            if (res.ok) {
+                const data = await res.json();
+                setPortfolioData(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch portfolio:", error);
+        } finally {
+            setIsPortfolioLoading(false);
         }
     };
 
@@ -219,6 +246,11 @@ export default function Dashboard() {
                 <section className="flex-1 flex flex-col relative">
                     {/* Chat Feed */}
                     <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 custom-scrollbar pb-32">
+                        {/* Portfolio Summary */}
+                        {wallet && (
+                            <PortfolioSummary data={portfolioData} isLoading={isPortfolioLoading} />
+                        )}
+
                         {messages.map((msg, index) => (
                             <div key={index} className={`flex gap-4 max-w-3xl ${msg.role === "user" ? "self-end" : ""}`}>
                                 {msg.role === "ai" && (
