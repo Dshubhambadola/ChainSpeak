@@ -76,7 +76,20 @@ def lend_asset(asset_name: str, amount: str) -> str:
     except Exception as e:
         return f"Error preparing supply: {str(e)}"
 
-tools = [get_wallet_balance, prepare_eth_transfer, swap_tokens, lend_asset]
+@tool
+def stake_eth(amount: str) -> str:
+    """Prepare a transaction to stake ETH into Lido.
+    Use this when the user wants to stake, deposit to Lido, or get stETH.
+    """
+    try:
+        clean_amount = str(amount).replace("ETH", "").strip()
+        amount_float = float(clean_amount)
+        
+        return f"TRANSACTION_PROPOSAL: {{\"type\": \"stake\", \"amount\": \"{amount_float}\"}}"
+    except Exception as e:
+        return f"Error preparing stake: {str(e)}"
+
+tools = [get_wallet_balance, prepare_eth_transfer, swap_tokens, lend_asset, stake_eth]
 
 # Create Agent
 # Removing modifier args to ensure compatibility with installed langgraph version
@@ -86,7 +99,7 @@ class AgentService:
     async def process_command(self, user_input: str):
         # Manually prepend the system prompt
         messages = [
-            SystemMessage(content="You are ChainSpeak, an AI assistant for blockchain interaction. \n\nCAPABILITIES:\n1. Check balances using `get_wallet_balance`.\n2. Prepare ETH transactions using `prepare_eth_transfer`.\n3. Swap tokens using `swap_tokens`.\n4. Lend/Supply assets using `lend_asset`.\n\nRULES:\n- If the user asks to send, transfer, or move ETH, you MUST use the `prepare_eth_transfer` tool.\n- If the user asks to swap, trade, or exchange tokens, you MUST use `swap_tokens`.\n- If the user asks to lend, supply, or deposit assets, you MUST use `lend_asset`.\n- Do NOT just answer with text if the user wants to transact. Invoke the tool.\n- Always be concise."),
+            SystemMessage(content="You are ChainSpeak, an AI assistant for blockchain interaction. \n\nCAPABILITIES:\n1. Check balances using `get_wallet_balance`.\n2. Prepare ETH transactions using `prepare_eth_transfer`.\n3. Swap tokens using `swap_tokens`.\n4. Lend/Supply assets using `lend_asset`.\n5. Stake ETH using `stake_eth`.\n\nRULES:\n- If the user wants to send/transfer ETH, use `prepare_eth_transfer`.\n- If the user wants to swap/trade tokens, use `swap_tokens`.\n- If the user wants to lend/supply assets, use `lend_asset`.\n- If the user wants to stake ETH, use `stake_eth`.\n- Do NOT just answer with text if the user wants to transact. Invoke the tool.\n- Always be concise."),
             ("user", user_input)
         ]
         response = await agent_executor.ainvoke({"messages": messages})

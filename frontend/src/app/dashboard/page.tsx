@@ -12,7 +12,7 @@ type Message = {
     content: string;
     isTransaction?: boolean;
     transactionData?: {
-        type: "transfer" | "swap" | "supply";
+        type: "transfer" | "swap" | "supply" | "stake";
         to?: string;
         amount?: string;
         token?: string;
@@ -145,6 +145,11 @@ export default function Dashboard() {
                 console.log("Mock Supply Execution:", data);
                 await new Promise(r => setTimeout(r, 2000));
                 result = { tx_hash: "0xMOCK_SUPPLY_HASH_" + Date.now() };
+            } else if (data.type === 'stake') {
+                // TODO: Implement actual stake API call
+                console.log("Mock Stake Execution:", data);
+                await new Promise(r => setTimeout(r, 2000));
+                result = { tx_hash: "0xMOCK_STAKE_HASH_" + Date.now() };
             }
 
             setTxStatus("success");
@@ -153,6 +158,7 @@ export default function Dashboard() {
             let successMsg = `Transaction Sent! Hash: ${result.tx_hash}`;
             if (data.type === 'swap') successMsg = `Swap Executed! Hash: ${result.tx_hash}`;
             if (data.type === 'supply') successMsg = `Supply Successful! Hash: ${result.tx_hash}`;
+            if (data.type === 'stake') successMsg = `Staked Successfully! Hash: ${result.tx_hash}`;
 
             setMessages(prev => [...prev, {
                 role: "ai",
@@ -271,12 +277,20 @@ export default function Dashboard() {
                                         <TransactionPreviewCard
                                             type={msg.transactionData.type}
                                             fromToken={{
-                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenIn! : (msg.transactionData.type === 'supply' ? msg.transactionData.token! : "ETH"),
-                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountIn! : msg.transactionData.amount!
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenIn! :
+                                                    (msg.transactionData.type === 'stake' ? "ETH" :
+                                                        (msg.transactionData.type === 'supply' ? msg.transactionData.token! : "ETH")),
+                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountIn! :
+                                                    (msg.transactionData.type === 'stake' ? msg.transactionData.amount! :
+                                                        msg.transactionData.amount!)
                                             }}
                                             toToken={{
-                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenOut! : (msg.transactionData.type === 'supply' ? "Aave V3 Pool" : "ETH (Recipient)"),
-                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountOutMin! : (msg.transactionData.type === 'supply' ? msg.transactionData.amount! : msg.transactionData.amount!)
+                                                symbol: msg.transactionData.type === 'swap' ? msg.transactionData.tokenOut! :
+                                                    (msg.transactionData.type === 'stake' ? "stETH" :
+                                                        (msg.transactionData.type === 'supply' ? "Aave V3 Pool" : "ETH (Recipient)")),
+                                                amount: msg.transactionData.type === 'swap' ? msg.transactionData.amountOutMin! :
+                                                    (msg.transactionData.type === 'stake' ? msg.transactionData.amount! :
+                                                        (msg.transactionData.type === 'supply' ? msg.transactionData.amount! : msg.transactionData.amount!))
                                             }}
                                             gasCost="~0.005 ETH"
                                             onConfirm={() => confirmTransaction(msg.transactionData)}

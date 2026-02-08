@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface TransactionPreviewCardProps {
-    type: "transfer" | "swap" | "supply";
+    type: "transfer" | "swap" | "supply" | "stake";
     fromToken: {
         symbol: string;
         amount: string;
@@ -29,6 +29,7 @@ export default function TransactionPreviewCard({
 }: TransactionPreviewCardProps) {
     const isSwap = type === "swap";
     const isSupply = type === "supply";
+    const isStake = type === "stake";
 
     let actionLabel = "Send";
     let actionColor = "bg-blue-600 hover:bg-blue-700";
@@ -42,6 +43,10 @@ export default function TransactionPreviewCard({
         actionLabel = "Confirm Supply";
         actionColor = "bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 shadow-lg shadow-teal-500/20";
         badgeColor = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+    } else if (isStake) {
+        actionLabel = "Stake ETH";
+        actionColor = "bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 shadow-lg shadow-cyan-500/20";
+        badgeColor = "bg-cyan-500/20 text-cyan-400 border-cyan-500/30";
     }
 
     return (
@@ -75,8 +80,8 @@ export default function TransactionPreviewCard({
 
                     {/* Arrow Animation */}
                     <div className="flex-1 flex justify-center">
-                        <div className={`w-8 h-8 rounded-full ${isSwap ? 'bg-[#7c17d3]/20' : (isSupply ? 'bg-emerald-500/20' : 'bg-blue-500/20')} flex items-center justify-center animate-pulse`}>
-                            <span className={`material-icons text-sm ${isSwap ? 'text-[#a838ff]' : (isSupply ? 'text-emerald-400' : 'text-blue-400')}`}>arrow_forward</span>
+                        <div className={`w-8 h-8 rounded-full ${isSwap ? 'bg-[#7c17d3]/20' : (isSupply ? 'bg-emerald-500/20' : (isStake ? 'bg-cyan-500/20' : 'bg-blue-500/20'))} flex items-center justify-center animate-pulse`}>
+                            <span className={`material-icons text-sm ${isSwap ? 'text-[#a838ff]' : (isSupply ? 'text-emerald-400' : (isStake ? 'text-cyan-400' : 'text-blue-400'))}`}>arrow_forward</span>
                         </div>
                     </div>
 
@@ -84,7 +89,7 @@ export default function TransactionPreviewCard({
                     <div className="flex flex-col items-center gap-2">
                         <div className="w-12 h-12 rounded-full bg-[#1e2029] flex items-center justify-center border border-white/10 shadow-inner">
                             <span className="material-icons text-gray-400">
-                                {isSwap ? "currency_bitcoin" : (isSupply ? "account_balance" : "person")}
+                                {isSwap ? "currency_bitcoin" : (isSupply ? "account_balance" : (isStake ? "water_drop" : "person"))}
                             </span>
                         </div>
                         <div className="text-center">
@@ -113,17 +118,17 @@ export default function TransactionPreviewCard({
                             <span className="text-emerald-400 font-mono">{toToken.amount} {toToken.symbol}</span>
                         </div>
                     )}
-                    {isSupply && (
+                    {(isSupply || isStake) && (
                         <div className="flex justify-between">
                             <span className="text-gray-500">APY (Est.)</span>
-                            <span className="text-emerald-400 font-mono">~2.5%</span>
+                            <span className="text-emerald-400 font-mono">~3.8%</span>
                         </div>
                     )}
                     <div className="flex justify-between pt-2 border-t border-white/5 mt-2">
                         <span className="text-gray-500">Route</span>
                         <div className="flex items-center gap-1 text-gray-300">
-                            <span className="material-icons text-[12px]">{isSwap ? "alt_route" : (isSupply ? "account_balance" : "send")}</span>
-                            <span>{isSwap ? "Uniswap V3" : (isSupply ? "Aave V3" : "Transfer")}</span>
+                            <span className="material-icons text-[12px]">{isSwap ? "alt_route" : (isSupply ? "account_balance" : (isStake ? "water_drop" : "send"))}</span>
+                            <span>{isSwap ? "Uniswap V3" : (isSupply ? "Aave V3" : (isStake ? "Lido" : "Transfer"))}</span>
                         </div>
                     </div>
                 </div>
